@@ -34,6 +34,11 @@ app.get("/", (req, res) => {
   res.json({ message: "Hotel Booking System API is running" });
 });
 
+// Health check
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ status: 'OK', message: 'Server is running' });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
