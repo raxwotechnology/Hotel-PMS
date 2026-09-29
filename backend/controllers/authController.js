@@ -4,7 +4,8 @@ const jwt = require("jsonwebtoken");
 
 // Generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+  const secret = process.env.JWT_SECRET || "default_hotel_pms_secret_key_2026";
+  return jwt.sign({ id }, secret, {
     expiresIn: "30d"
   });
 };
@@ -146,7 +147,8 @@ exports.login = async (req, res) => {
       token
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to login" });
+    console.error("Login exception:", err);
+    res.status(500).json({ error: "Failed to login: " + err.message });
   }
 };
 
