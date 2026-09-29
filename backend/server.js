@@ -45,6 +45,53 @@ app.get("/", (req, res) => {
   res.json({ message: "Hotel Booking System API is running" });
 });
 
+// One-click Auto-Seed endpoint for Admin & Customer
+app.get('/api/seed', async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const bcrypt = require("bcryptjs");
+
+    const hashedPasswordAdmin = await bcrypt.hash("admin123", 10);
+    const hashedPasswordCustomer = await bcrypt.hash("password123", 10);
+
+    const admin = await User.findOneAndUpdate(
+      { email: "admin@hotel.com" },
+      {
+        name: "Hotel Administrator",
+        email: "admin@hotel.com",
+        password: hashedPasswordAdmin,
+        phone: "0771234567",
+        role: "admin"
+      },
+      { upsert: true, new: true }
+    );
+
+    const customer = await User.findOneAndUpdate(
+      { email: "customer@hotel.com" },
+      {
+        name: "Demo Customer",
+        email: "customer@hotel.com",
+        password: hashedPasswordCustomer,
+        phone: "0777654321",
+        role: "customer"
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin and Customer accounts created/updated successfully!",
+      accounts: {
+        admin: { email: admin.email, password: "admin123", role: admin.role },
+        customer: { email: customer.email, password: "password123", role: customer.role }
+      }
+    });
+  } catch (err) {
+    console.error("Seed error:", err);
+    res.status(500).json({ error: "Failed to seed accounts", details: err.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   const mongoose = require("mongoose");
