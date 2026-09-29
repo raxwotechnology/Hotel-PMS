@@ -6,12 +6,11 @@ const connectDB = async () => {
     return;
   }
 
-  if (!process.env.MONGO_URI) {
-    throw new Error("MONGO_URI environment variable is missing in Vercel settings");
-  }
+  const DEFAULT_URI = "mongodb+srv://raxwotechnology_db_user:JdLoSa5zV20xaH96@cluster0.pgdcy8f.mongodb.net/hotel_pms?retryWrites=true&w=majority";
+  let mongoUri = (process.env.MONGO_URI || DEFAULT_URI).trim().replace(/\s+/g, "");
 
   try {
-    await mongoose.connect(process.env.MONGO_URI, {
+    await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 8000,
     });
     console.log("MongoDB connected successfully");
