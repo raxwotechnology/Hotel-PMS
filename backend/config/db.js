@@ -6,8 +6,13 @@ const connectDB = async () => {
     return;
   }
 
-  const DEFAULT_URI = "mongodb+srv://raxwotechnology_db_user:JdLoSa5zV20xaH96@cluster0.pgdcy8f.mongodb.net/hotel_pms?retryWrites=true&w=majority";
-  let mongoUri = (process.env.MONGO_URI || DEFAULT_URI).trim().replace(/\s+/g, "");
+  const NEW_CLUSTER_URI = "mongodb+srv://raxwotechnology_db_user:JdLoSa5zV20xaH96@cluster0.pgdcy8f.mongodb.net/hotel_pms?retryWrites=true&w=majority";
+  let mongoUri = (process.env.MONGO_URI || NEW_CLUSTER_URI).trim().replace(/\s+/g, "");
+
+  // If Vercel environment variable still has the old dead cluster, use the new working one
+  if (mongoUri.includes("uauzm5x")) {
+    mongoUri = NEW_CLUSTER_URI;
+  }
 
   try {
     await mongoose.connect(mongoUri, {
@@ -17,9 +22,6 @@ const connectDB = async () => {
     await seedDefaultUsers();
   } catch (err) {
     console.error("MongoDB connection error:", err.message);
-    if (process.env.NODE_ENV !== "production") {
-      process.exit(1); // Exit process with failure in local development
-    }
     throw err;
   }
 };
