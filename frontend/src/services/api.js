@@ -1,16 +1,11 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-// When deployed to production (e.g. Vercel), route directly to '/api' if not explicitly configured with an external https URL
-let API_URL = process.env.REACT_APP_API_URL;
+// When running locally on localhost, use port 5000.
+// In any deployed environment (e.g. Vercel), always use relative '/api'
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-  if (!API_URL || API_URL.includes('localhost')) {
-    API_URL = '/api';
-  }
-} else if (!API_URL) {
-  API_URL = 'http://localhost:5000/api';
-}
+const API_URL = isLocal ? (process.env.REACT_APP_API_URL || 'http://localhost:5000/api') : '/api';
 
 const api = axios.create({
   baseURL: API_URL,
