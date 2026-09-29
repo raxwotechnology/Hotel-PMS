@@ -29,7 +29,20 @@ export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/me'),
-  updateProfile: (userData) => api.put('/auth/profile', userData)
+  updateProfile: (userData) => api.put('/auth/profile', userData),
+  changePassword: (passwordData) => api.put('/auth/password', passwordData)
+};
+
+// Booking API
+export const bookingAPI = {
+  getAllBookings: () => api.get('/bookings'),
+  getMyBookings: () => api.get('/bookings/my-bookings'),
+  getBookingsByDate: (date) => api.get('/bookings/by-date', { params: { date } }),
+  getBooking: (id) => api.get(`/bookings/${id}`),
+  createBooking: (bookingData) => api.post('/bookings', bookingData),
+  updateBooking: (id, bookingData) => api.put(`/bookings/${id}`, bookingData),
+  cancelBooking: (id) => api.put(`/bookings/${id}/cancel`),
+  deleteBooking: (id) => api.delete(`/bookings/${id}`)
 };
 
 // Guest API

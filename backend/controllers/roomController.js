@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Room = require("../models/Room");
 const Reservation = require("../models/Reservation");
+const Booking = require("../models/Booking");
 
 // Get all rooms
 exports.getRooms = async (req, res) => {
@@ -33,15 +34,28 @@ exports.getRoomsByStatus = async (req, res) => {
   }
 };
 
-// Get available rooms for date range
+// Get available rooms for date range (or browse all active available rooms)
 exports.getAvailableRooms = async (req, res) => {
   const { checkInDate, checkOutDate, roomType } = req.query;
 
-  if (!checkInDate || !checkOutDate) {
-    return res.status(400).json({ error: "Check-in and check-out dates are required" });
-  }
-
   try {
+    // If no dates provided, return all active rooms currently available for guests
+    if (!checkInDate || !checkOutDate) {
+      const query = {
+        status: { $in: ["Available", "Cleaning"] },
+        isActive: true
+      };
+      if (roomType) {
+        query.roomType = roomType;
+      }
+
+      const availableRooms = await Room.find(query)
+        .select("-currentReservation -maintenanceNotes")
+        .sort({ roomNumber: 1 });
+
+      return res.json(availableRooms);
+    }
+
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
 
@@ -49,35 +63,36 @@ exports.getAvailableRooms = async (req, res) => {
     checkIn.setHours(0, 0, 0, 0);
     checkOut.setHours(0, 0, 0, 0);
 
-    console.log('Searching availability for:', {
-      checkIn: checkIn.toISOString(),
-      checkOut: checkOut.toISOString()
-    });
-
     // Find overlapping reservations
-    // A room is unavailable if there's ANY overlap with existing reservations
-    // Overlap exists when: (StartA < EndB) AND (EndA > StartB)
     const overlappingReservations = await Reservation.find({
       status: { $nin: ["Cancelled", "Checked-Out"] },
       $and: [
-        { checkInDate: { $lt: checkOut } },  // Existing checkin is BEFORE requested checkout
-        { checkOutDate: { $gt: checkIn } }   // Existing checkout is AFTER requested checkin
+        { checkInDate: { $lt: checkOut } },
+        { checkOutDate: { $gt: checkIn } }
       ]
-    }).select("room reservationNumber checkInDate checkOutDate");
+    }).select("room");
 
-    console.log('Found overlapping reservations:', overlappingReservations.length);
-    overlappingReservations.forEach(res => {
-      console.log(`- ${res.reservationNumber}: ${res.checkInDate} to ${res.checkOutDate}, Room: ${res.room}`);
-    });
+    // Find overlapping bookings
+    const overlappingBookings = await Booking.find({
+      bookingStatus: { $nin: ["cancelled", "checked-out"] },
+      $and: [
+        { checkInDate: { $lt: checkOut } },
+        { checkOutDate: { $gt: checkIn } }
+      ]
+    }).select("room");
 
-    const bookedRoomIds = overlappingReservations
+    const bookedReservationIds = overlappingReservations
       .filter(r => r.room)
       .map(r => r.room.toString());
 
-    console.log('Booked room IDs:', bookedRoomIds);
+    const bookedBookingIds = overlappingBookings
+      .filter(b => b.room)
+      .map(b => b.room.toString());
+
+    const allBookedRoomIds = [...new Set([...bookedReservationIds, ...bookedBookingIds])];
 
     const query = {
-      _id: { $nin: bookedRoomIds },
+      _id: { $nin: allBookedRoomIds },
       status: { $in: ["Available", "Cleaning"] },
       isActive: true
     };
@@ -86,9 +101,9 @@ exports.getAvailableRooms = async (req, res) => {
       query.roomType = roomType;
     }
 
-    const availableRooms = await Room.find(query).sort({ roomNumber: 1 });
-
-    console.log('Available rooms found:', availableRooms.length);
+    const availableRooms = await Room.find(query)
+      .select("-currentReservation -maintenanceNotes")
+      .sort({ roomNumber: 1 });
 
     res.json(availableRooms);
   } catch (err) {
@@ -102,7 +117,16 @@ exports.getRoom = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const room = await Room.findById(id).populate("currentReservation");
+    const isCustomer = req.user && (req.user.role || '').toLowerCase().trim() === 'customer';
+
+    let roomQuery = Room.findById(id);
+    if (!isCustomer) {
+      roomQuery = roomQuery.populate("currentReservation");
+    } else {
+      roomQuery = roomQuery.select("-currentReservation -maintenanceNotes");
+    }
+
+    const room = await roomQuery.exec();
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });

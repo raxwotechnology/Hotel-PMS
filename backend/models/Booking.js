@@ -47,6 +47,13 @@ const bookingSchema = new mongoose.Schema({
   specialRequests: {
     type: String
   },
+  reservationNumber: {
+    type: String
+  },
+  reservation: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Reservation"
+  },
   createdAt: {
     type: Date,
     default: Date.now

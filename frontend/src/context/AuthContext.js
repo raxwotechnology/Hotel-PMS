@@ -13,7 +13,14 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,11 +32,20 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       try {
         const response = await authAPI.getProfile();
-        setUser(response.data);
+        const userData = response.data;
+        if (userData && userData.role) {
+          userData.role = userData.role.toLowerCase().trim();
+        }
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
       } catch (error) {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setUser(null);
       }
+    } else {
+      localStorage.removeItem('user');
+      setUser(null);
     }
     setLoading(false);
   };
@@ -37,9 +53,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await authAPI.login(credentials);
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data);
-      return { success: true };
+      const userData = response.data;
+      if (userData && userData.role) {
+        userData.role = userData.role.toLowerCase().trim();
+      }
+      localStorage.setItem('token', userData.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true, user: userData };
     } catch (error) {
       return { 
         success: false, 
@@ -48,12 +69,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (userData) => {
+  const register = async (userDataInput) => {
     try {
-      const response = await authAPI.register(userData);
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data);
-      return { success: true };
+      const response = await authAPI.register(userDataInput);
+      const userData = response.data;
+      if (userData && userData.role) {
+        userData.role = userData.role.toLowerCase().trim();
+      }
+      localStorage.setItem('token', userData.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true, user: userData };
     } catch (error) {
       return { 
         success: false, 
@@ -64,18 +90,38 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
   };
 
+  const updateUser = (updatedData) => {
+    setUser(prev => {
+      const merged = prev ? { ...prev, ...updatedData } : updatedData;
+      if (merged && merged.role) {
+        merged.role = merged.role.toLowerCase().trim();
+      }
+      localStorage.setItem('user', JSON.stringify(merged));
+      return merged;
+    });
+  };
+
+  const role = (user?.role || '').toLowerCase().trim();
+  const isCustomer = role === 'customer';
+  const isAdmin = role === 'admin';
+  const isStaff = ['admin', 'staff', 'manager', 'finance', 'housekeeping', 'maintenance'].includes(role);
+
   const value = {
     user,
+    role,
     loading,
     login,
     register,
     logout,
+    updateUser,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
-    isStaff: user?.role === 'staff' || user?.role === 'admin'
+    isAdmin,
+    isCustomer,
+    isStaff
   };
 
   return (

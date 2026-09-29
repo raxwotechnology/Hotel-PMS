@@ -1,30 +1,28 @@
 // frontend/src/pages/TravelAgents.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaPlane } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaSearch, FaPlane } from 'react-icons/fa';
 import { travelAgentAPI } from '../services/api';
 import { toast } from 'react-toastify';
+import PageHeader from '../components/ui/PageHeader';
+import StatusBadge from '../components/ui/StatusBadge';
+import EmptyState from '../components/ui/EmptyState';
+import { TableSkeleton } from '../components/ui/LoadingSkeleton';
 
 const TravelAgents = () => {
   const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
-  const [filteredAgents, setFilteredAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchAgents();
   }, []);
 
-  useEffect(() => {
-    filterAgents();
-  }, [statusFilter, agents]);
-
   const fetchAgents = async () => {
     try {
       const response = await travelAgentAPI.getAgents();
       setAgents(response.data);
-      setFilteredAgents(response.data);
     } catch (error) {
       toast.error('Failed to load travel agents');
     } finally {
@@ -32,86 +30,81 @@ const TravelAgents = () => {
     }
   };
 
-  const filterAgents = () => {
-    if (statusFilter === 'all') {
-      setFilteredAgents(agents);
-    } else {
-      setFilteredAgents(agents.filter(agent => agent.status === statusFilter));
-    }
-  };
-
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this travel agent?')) return;
-
     try {
       await travelAgentAPI.deleteAgent(id);
       toast.success('Travel agent deleted successfully');
       fetchAgents();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to delete agent');
+      toast.error(error.response?.data?.error || 'Failed to delete travel agent');
     }
   };
 
-  const getStatusBadge = (status) => {
-    const classes = {
-      'Active': 'badge-success',
-      'Inactive': 'badge-secondary',
-      'Suspended': 'badge-danger'
-    };
-    return <span className={`badge ${classes[status]}`}>{status}</span>;
-  };
-
-  if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
-  }
+  const filteredAgents = agents.filter(agent => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      agent.agentName?.toLowerCase().includes(term) ||
+      agent.companyName?.toLowerCase().includes(term) ||
+      agent.agentCode?.toLowerCase().includes(term) ||
+      agent.email?.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <div>
-      <div className="topbar">
-        <h1 className="topbar-title">Travel Agents</h1>
-        <div className="topbar-actions">
-          <button onClick={() => navigate('/travel-agents/new')} className="btn btn-primary">
-            <FaPlus /> Add New Agent
-          </button>
-        </div>
-      </div>
-
       <div className="content-wrapper">
+        <PageHeader 
+          title="Travel Agents" 
+          subtitle="Manage partner agencies, commissions and booking attributions."
+        >
+          <button onClick={() => navigate('/travel-agents/new')} className="btn btn-primary">
+            <FaPlus /> Add Agent
+          </button>
+        </PageHeader>
+
+        {/* Search */}
         <div className="filters">
           <div className="filter-row">
-            <select
-              className="form-control"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ maxWidth: '200px' }}
-            >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Suspended">Suspended</option>
-            </select>
+            <div className="search-box">
+              <FaSearch />
+              <input
+                type="text"
+                placeholder="Search agent name, company or code..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
-        {filteredAgents.length === 0 ? (
-          <div className="empty-state">
-            <FaPlane />
-            <h3>No travel agents found</h3>
-            <p>Add a travel agent to start receiving bookings</p>
-          </div>
+        {loading ? (
+          <TableSkeleton rows={5} cols={7} />
+        ) : filteredAgents.length === 0 ? (
+          <EmptyState 
+            icon={FaPlane}
+            title="No travel agents found"
+            message={searchTerm ? "Try adjusting your search." : "Add your first travel agent partner."}
+            action={
+              !searchTerm && (
+                <button onClick={() => navigate('/travel-agents/new')} className="btn btn-primary">
+                  <FaPlus /> Add Agent
+                </button>
+              )
+            }
+          />
         ) : (
-          <div className="card">
+          <div className="card" style={{ marginBottom: 0 }}>
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Company Name</th>
-                    <th>Agent Code</th>
-                    <th>Contact Person</th>
+                    <th>Code</th>
+                    <th>Agency</th>
                     <th>Contact</th>
                     <th>Commission</th>
-                    <th>Bookings</th>
-                    <th>Revenue</th>
+                    <th>Payment Terms</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -119,46 +112,34 @@ const TravelAgents = () => {
                 <tbody>
                   {filteredAgents.map((agent) => (
                     <tr key={agent._id}>
+                      <td><strong>{agent.agentCode}</strong></td>
                       <td>
-                        <strong>{agent.companyName}</strong>
-                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                          {agent.agentName}
-                        </div>
+                        <div style={{ fontWeight: 600 }}>{agent.companyName}</div>
+                        <div className="table-cell-sub">{agent.agentName}</div>
                       </td>
                       <td>
-                        <span className="badge badge-info">{agent.agentCode}</span>
+                        <div>{agent.phone}</div>
+                        <div className="table-cell-sub">{agent.email}</div>
                       </td>
-                      <td>{agent.contactPerson}</td>
+                      <td><strong>{agent.commissionRate}%</strong></td>
+                      <td><StatusBadge status={agent.paymentTerms || 'Credit'} /></td>
+                      <td><StatusBadge status={agent.status || 'Active'} /></td>
                       <td>
-                        <div>{agent.email}</div>
-                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                          {agent.phone}
-                        </div>
-                      </td>
-                      <td>{agent.commissionRate}%</td>
-                      <td>{agent.totalBookings || 0}</td>
-                      <td>₹{(agent.totalRevenue || 0).toLocaleString()}</td>
-                      <td>{getStatusBadge(agent.status)}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button
-                            onClick={() => navigate(`/travel-agents/${agent._id}`)}
-                            className="btn btn-sm btn-outline"
-                            title="View Details"
-                          >
-                            <FaEye />
-                          </button>
+                        <div className="table-actions">
                           <button
                             onClick={() => navigate(`/travel-agents/${agent._id}/edit`)}
-                            className="btn btn-sm btn-primary"
+                            className="btn btn-icon btn-ghost btn-sm"
                             title="Edit"
+                            aria-label="Edit agent"
                           >
                             <FaEdit />
                           </button>
                           <button
                             onClick={() => handleDelete(agent._id)}
-                            className="btn btn-sm btn-danger"
+                            className="btn btn-icon btn-ghost btn-sm"
                             title="Delete"
+                            aria-label="Delete agent"
+                            style={{ color: 'var(--color-danger)' }}
                           >
                             <FaTrash />
                           </button>

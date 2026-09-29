@@ -1,16 +1,21 @@
 // frontend/src/pages/Reservations.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaPlus, FaEye, FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEye, FaCheck, FaTimes, FaSearch, FaCalendarAlt } from 'react-icons/fa';
 import { reservationAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import PageHeader from '../components/ui/PageHeader';
+import StatusBadge from '../components/ui/StatusBadge';
+import EmptyState from '../components/ui/EmptyState';
+import { TableSkeleton } from '../components/ui/LoadingSkeleton';
 
 const Reservations = () => {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchReservations();
@@ -49,7 +54,6 @@ const Reservations = () => {
       const response = await reservationAPI.checkOut(id, { actualCheckOutDate: new Date() });
       
       if (response.data.invoice) {
-        // If invoice was created, redirect to it for payment
         toast.success('Invoice generated. Please process payment.');
         navigate(`/invoices/${response.data.invoice._id}`);
       } else {
@@ -58,7 +62,6 @@ const Reservations = () => {
       }
     } catch (error) {
       if (error.response?.data?.invoiceId) {
-        // Balance due - redirect to invoice
         toast.warning(error.response.data.error);
         navigate(`/invoices/${error.response.data.invoiceId}`);
       } else {
@@ -67,44 +70,47 @@ const Reservations = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const classes = {
-      'Confirmed': 'badge-info',
-      'Checked-In': 'badge-success',
-      'Checked-Out': 'badge-secondary',
-      'Cancelled': 'badge-danger',
-      'No-Show': 'badge-warning'
-    };
-    return <span className={`badge ${classes[status]}`}>{status}</span>;
-  };
-
-  const getSourceBadge = (source) => {
-    return <span className="badge badge-secondary">{source}</span>;
-  };
-
-  if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
-  }
+  const filteredReservations = reservations.filter(r => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      r.reservationNumber?.toLowerCase().includes(term) ||
+      r.guest?.firstName?.toLowerCase().includes(term) ||
+      r.guest?.lastName?.toLowerCase().includes(term) ||
+      r.guest?.phone?.includes(term) ||
+      r.room?.roomNumber?.includes(term)
+    );
+  });
 
   return (
     <div>
-      <div className="topbar">
-        <h1 className="topbar-title">Reservations</h1>
-        <div className="topbar-actions">
+      <div className="content-wrapper">
+        <PageHeader 
+          title="Reservations" 
+          subtitle="Manage bookings, arrivals, departures and guest stays."
+        >
           <button onClick={() => navigate('/reservations/new')} className="btn btn-primary">
             <FaPlus /> New Reservation
           </button>
-        </div>
-      </div>
+        </PageHeader>
 
-      <div className="content-wrapper">
+        {/* Filters */}
         <div className="filters">
           <div className="filter-row">
+            <div className="search-box">
+              <FaSearch />
+              <input
+                type="text"
+                placeholder="Search reservation, guest or room..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
             <select
               className="form-control"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ maxWidth: '200px' }}
+              style={{ maxWidth: '180px' }}
             >
               <option value="all">All Status</option>
               <option value="Confirmed">Confirmed</option>
@@ -115,13 +121,23 @@ const Reservations = () => {
           </div>
         </div>
 
-        {reservations.length === 0 ? (
-          <div className="empty-state">
-            <h3>No reservations found</h3>
-            <p>Create a new reservation to get started</p>
-          </div>
+        {loading ? (
+          <TableSkeleton rows={6} cols={8} />
+        ) : filteredReservations.length === 0 ? (
+          <EmptyState 
+            icon={FaCalendarAlt}
+            title="No reservations found"
+            message={searchTerm ? "Try adjusting your search or filters." : "Create a new reservation to get started."}
+            action={
+              !searchTerm && (
+                <button onClick={() => navigate('/reservations/new')} className="btn btn-primary">
+                  <FaPlus /> New Reservation
+                </button>
+              )
+            }
+          />
         ) : (
-          <div className="card">
+          <div className="card" style={{ marginBottom: 0 }}>
             <div className="table-container">
               <table className="table">
                 <thead>
@@ -138,46 +154,50 @@ const Reservations = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {reservations.map((reservation) => (
+                  {filteredReservations.map((reservation) => (
                     <tr key={reservation._id}>
                       <td><strong>{reservation.reservationNumber}</strong></td>
                       <td>
-                        {reservation.guest?.firstName} {reservation.guest?.lastName}
-                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                        <div style={{ fontWeight: 500 }}>
+                          {reservation.guest?.firstName} {reservation.guest?.lastName}
+                        </div>
+                        <div className="table-cell-sub">
                           {reservation.guest?.phone}
                         </div>
                       </td>
                       <td>
                         {reservation.room ? (
                           <>
-                            {reservation.room.roomType}
-                            <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                            <div style={{ fontWeight: 500 }}>{reservation.room.roomType}</div>
+                            <div className="table-cell-sub">
                               Room {reservation.room.roomNumber}
                             </div>
                           </>
                         ) : (
-                          <span style={{ color: '#f59e0b' }}>Not Assigned</span>
+                          <span className="badge badge-warning">Not Assigned</span>
                         )}
                       </td>
                       <td>{format(new Date(reservation.checkInDate), 'MMM dd, yyyy')}</td>
                       <td>{format(new Date(reservation.checkOutDate), 'MMM dd, yyyy')}</td>
-                      <td>{getSourceBadge(reservation.bookingSource)}</td>
-                      <td>{getStatusBadge(reservation.status)}</td>
+                      <td><StatusBadge status={reservation.bookingSource} /></td>
+                      <td><StatusBadge status={reservation.status} /></td>
                       <td><strong>₹{reservation.totalAmount?.toLocaleString()}</strong></td>
                       <td>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div className="table-actions">
                           <button
                             onClick={() => navigate(`/reservations/${reservation._id}`)}
-                            className="btn btn-sm btn-outline"
-                            title="View"
+                            className="btn btn-icon btn-ghost btn-sm"
+                            title="View Details"
+                            aria-label="View reservation details"
                           >
                             <FaEye />
                           </button>
                           {reservation.status === 'Confirmed' && (
                             <button
                               onClick={() => handleCheckIn(reservation._id)}
-                              className="btn btn-sm btn-success"
+                              className="btn btn-icon btn-sm btn-success"
                               title="Check In"
+                              aria-label="Check in guest"
                             >
                               <FaCheck />
                             </button>
@@ -185,8 +205,9 @@ const Reservations = () => {
                           {reservation.status === 'Checked-In' && (
                             <button
                               onClick={() => handleCheckOut(reservation._id)}
-                              className="btn btn-sm btn-warning"
+                              className="btn btn-icon btn-sm btn-warning"
                               title="Check Out"
+                              aria-label="Check out guest"
                             >
                               <FaTimes />
                             </button>
