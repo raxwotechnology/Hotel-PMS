@@ -1,7 +1,16 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://hotelmanagementsystem-dq0i.onrender.com/api';
+// When deployed to production (e.g. Vercel), route directly to '/api' if not explicitly configured with an external https URL
+let API_URL = process.env.REACT_APP_API_URL;
+
+if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  if (!API_URL || API_URL.includes('localhost')) {
+    API_URL = '/api';
+  }
+} else if (!API_URL) {
+  API_URL = 'http://localhost:5000/api';
+}
 
 const api = axios.create({
   baseURL: API_URL,
